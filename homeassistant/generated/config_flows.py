@@ -254,6 +254,7 @@ FLOWS = {
         "homeassistant_sky_connect",
         "homekit",
         "homekit_controller",
+        "homelink",
         "homematicip_cloud",
         "homewizard",
         "homeworks",

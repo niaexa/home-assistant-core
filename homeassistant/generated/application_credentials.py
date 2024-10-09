@@ -14,6 +14,7 @@ APPLICATION_CREDENTIALS = [
     "google_sheets",
     "google_tasks",
     "home_connect",
+    "homelink",
     "husqvarna_automower",
     "iotty",
     "lametric",

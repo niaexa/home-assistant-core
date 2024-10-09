@@ -633,6 +633,8 @@ build.json @home-assistant/supervisor
 /tests/components/homekit/ @bdraco
 /homeassistant/components/homekit_controller/ @Jc2k @bdraco
 /tests/components/homekit_controller/ @Jc2k @bdraco
+/homeassistant/components/homelink/ @niaexa
+/tests/components/homelink/ @niaexa
 /homeassistant/components/homematic/ @pvizeli
 /tests/components/homematic/ @pvizeli
 /homeassistant/components/homematicip_cloud/ @hahn-th
