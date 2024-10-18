@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+from homelink.provider import Provider
+
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -32,31 +34,38 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up homelink from a config entry."""
-    device_info = DeviceInfo(
-        identifiers={
-            # Serial numbers are unique identifiers within a specific domain
-            (DOMAIN, "ABC-123")
-        },
-        name="Superdevice",
+    p = Provider(
+        # TODO: URL temporarily hardcoded
+        "https://d1f2mm2dg61j0w.cloudfront.net/services/v2/home-assistant/fulfillment"
     )
+    await p.enable(config_entry.runtime_data)
 
-    async_add_entities(
-        [
-            HomelinkBinarySensor("Button 1", device_info),
-            HomelinkBinarySensor("Button 2", device_info),
-            HomelinkBinarySensor("Button 3", device_info),
-        ]
-    )
+    device_data = await p.discover(config_entry.runtime_data)
+
+    logging.info(device_data)
+
+    for device in device_data:
+        device_info = DeviceInfo(
+            identifiers={
+                # Serial numbers are unique identifiers within a specific domain
+                (DOMAIN, device.id)
+            },
+            name=device.name,
+        )
+
+        async_add_entities(
+            [HomelinkBinarySensor(b.id, b.name, device_info) for b in device.buttons]
+        )
 
 
 class HomelinkBinarySensor(BinarySensorEntity):
     """Binary sensor."""
 
-    def __init__(self, name, device_info) -> None:
+    def __init__(self, id, name, device_info) -> None:
         """Initialize the button."""
 
         self.name = name
-        self.unique_id = f"{DOMAIN}.{name}"
+        self.unique_id = f"{DOMAIN}.{id}"
         self.device_info = device_info
 
     @property
