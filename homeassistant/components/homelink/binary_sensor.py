@@ -2,30 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 import logging
-
-from homelink.provider import Provider
+import time
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 
 # Import the device class from the component that you want to support
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-
-# Validation of the user's configuration
-# PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-#     {
-#         vol.Required(CONF_HOST): cv.string,
-#         vol.Optional(CONF_USERNAME, default="admin"): cv.string,
-#         vol.Optional(CONF_PASSWORD): cv.string,
-#     }
-# )
+SCAN_INTERVAL = timedelta(seconds=5)
 
 
 async def async_setup_entry(
@@ -34,13 +27,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up homelink from a config entry."""
-    p = Provider(
-        # TODO: URL temporarily hardcoded
-        "https://d1f2mm2dg61j0w.cloudfront.net/services/v2/home-assistant/fulfillment"
-    )
-    await p.enable(config_entry.runtime_data)
+    coordinator = config_entry.runtime_data["coordinator"]
+    provider = config_entry.runtime_data["provider"]
 
-    device_data = await p.discover(config_entry.runtime_data)
+    await provider.enable()
+
+    device_data = await provider.discover()
 
     logging.info(device_data)
 
@@ -54,21 +46,44 @@ async def async_setup_entry(
         )
 
         async_add_entities(
-            [HomelinkBinarySensor(b.id, b.name, device_info) for b in device.buttons]
+            [
+                HomelinkBinarySensor(b.id, b.name, device_info, coordinator)
+                for b in device.buttons
+            ]
         )
 
 
-class HomelinkBinarySensor(BinarySensorEntity):
+class HomelinkBinarySensor(CoordinatorEntity, BinarySensorEntity):
     """Binary sensor."""
 
-    def __init__(self, id, name, device_info) -> None:
+    def __init__(self, id, name, device_info, coordinator) -> None:
         """Initialize the button."""
-
+        super().__init__(coordinator, context=id)
+        self.id = id
         self.name = name
         self.unique_id = f"{DOMAIN}.{id}"
         self.device_info = device_info
+        self.on = False
+        self.last_request_id = None
 
     @property
     def is_on(self) -> bool:
         """Return true if the binary sensor is on."""
-        return True
+        return self.on
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Update this button."""
+        if self.id not in self.coordinator.data:
+            self.on = False
+        else:
+            latest_update = self.coordinator.data[self.id]
+            self.on = (time.time() - latest_update["timestamp"]) < 10 and latest_update[
+                "requestId"
+            ] != self.last_request_id
+            self.last_request_id = latest_update["requestId"]
+        logging.info(
+            "%(button_name)s:%(button_state)s",
+            extra={"button_name": self.name, "button_state": self.on},
+        )
+        self.async_write_ha_state()
